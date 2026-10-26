@@ -19,6 +19,7 @@ Relay is a personal version of [Orca](https://github.com/stablyai/orca) with add
 - **Source control.** Stage, unstage and discard, commit, push and pull, side-by-side or inline diffs, and review comments on diff lines that can be sent straight to an agent.
 - **Browser tab** with a design mode that picks an element and sends its selector and HTML to an agent.
 - **Usage meter** in the sidebar: share of the plan's 5-hour session and weekly limits used, with time until reset, plus tokens for the current window and for the day, read from the CLI's local logs.
+- **Updates.** On the first launch of each day Relay checks this repository's latest GitHub release. A newer Windows installer downloads in the background, and Relay then offers to restart into it or skip. The refresh button in the sidebar footer runs the same check on demand.
 - Workspace board statuses (Todo, In progress, In review, Done), grouping, pinning, and light, dark or system theme.
 
 ### Skills and Obsidian

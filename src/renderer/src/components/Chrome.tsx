@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, CircleAlert, CircleCheck, FolderPlus, GitBranch, Info, SquarePen, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CircleAlert, CircleCheck, Download, FolderPlus, GitBranch, Info, SquarePen, X } from 'lucide-react'
 import type { Workspace } from '@shared/types'
 import { useStore } from '@/store/app-store'
 import { shortcutLabel } from '@/lib/shortcuts'
@@ -62,6 +62,34 @@ export function Toaster(): ReactNode {
           </button>
         </div>
       ))}
+    </div>
+  )
+}
+
+export function UpdatePrompt(): ReactNode {
+  const update = useStore((s) => s.update)
+  const dismissed = useStore((s) => s.updatePromptDismissed)
+  const setDismissed = useStore((s) => s.setUpdatePromptDismissed)
+  if (update.state !== 'ready' || dismissed) {
+    return null
+  }
+  return (
+    <div role="alertdialog" aria-label="Update ready" className="fixed bottom-9 left-4 z-[70] flex w-[340px] flex-col gap-3 rounded-lg border border-border bg-popover p-3 text-xs shadow-floating">
+      <div className="flex items-start gap-2">
+        <Download className="size-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-foreground">Relay {update.version} is ready</p>
+          <p className="mt-0.5 text-muted-foreground">Restart to finish installing the update.</p>
+        </div>
+      </div>
+      <div className="flex justify-end gap-1.5">
+        <Button size="sm" variant="ghost" onClick={() => setDismissed(true)}>
+          Skip
+        </Button>
+        <Button size="sm" onClick={() => void window.relay.updater.install()}>
+          Restart
+        </Button>
+      </div>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import type {
   TabSession,
   TerminalPaneSession,
   UiState,
+  UpdateStatus,
   Workspace,
   WorkspaceSession,
   WorkspaceStatus
@@ -64,6 +65,8 @@ type AppState = {
   dialog: DialogState
   palette: PaletteMode
   toasts: Toast[]
+  update: UpdateStatus
+  updatePromptDismissed: boolean
   windowFocused: boolean
   leftSidebarOpen: boolean
   searchFocusToken: number
@@ -101,6 +104,8 @@ type AppActions = {
   setPalette: (mode: PaletteMode) => void
   toast: (kind: Toast['kind'], message: string) => void
   dismissToast: (id: string) => void
+  setUpdate: (update: UpdateStatus) => void
+  setUpdatePromptDismissed: (dismissed: boolean) => void
   setWindowFocused: (focused: boolean) => void
   toggleLeftSidebar: () => void
   focusSearch: () => void
@@ -157,6 +162,8 @@ export const useStore = create<Store>((set, get) => {
     dialog: null,
     palette: null,
     toasts: [],
+    update: { state: 'idle' },
+    updatePromptDismissed: false,
     windowFocused: true,
     leftSidebarOpen: true,
     searchFocusToken: 0,
@@ -499,6 +506,14 @@ export const useStore = create<Store>((set, get) => {
 
     dismissToast(id) {
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }))
+    },
+
+    setUpdate(update) {
+      set({ update })
+    },
+
+    setUpdatePromptDismissed(dismissed) {
+      set({ updatePromptDismissed: dismissed })
     },
 
     setWindowFocused(focused) {

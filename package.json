@@ -1,7 +1,7 @@
 {
   "name": "relay",
   "productName": "Relay",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Desktop workbench for running CLI coding agents side by side, each in its own git worktree.",
   "author": "Weebec",

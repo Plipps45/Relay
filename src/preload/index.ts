@@ -81,6 +81,12 @@ const api: RelayApi = {
     remove: (projectId, key) => invoke('skills:remove', projectId, key),
     files: (dir) => invoke('skills:files', dir)
   },
+  updater: {
+    get: () => invoke('updater:get'),
+    check: () => invoke('updater:check'),
+    install: () => invoke('updater:install'),
+    onStatus: (listener) => on('updater:status', listener)
+  },
   usage: {
     get: () => invoke('usage:get')
   },

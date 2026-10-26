@@ -210,8 +210,10 @@ export function WorkbenchContent({ workspace }: { workspace: Workspace }): React
     <div className="relative h-full min-h-0">
       {session.tabs.map((tab) => {
         const visible = tab.id === session.activeTabId
+        // Monaco's diff editor sets visibility: visible on its inner editors, which defeats `invisible`.
+        const hideWithDisplay = tab.kind === 'diff' || tab.kind === 'changes'
         return (
-          <div key={tab.id} className={cn('absolute inset-0', !visible && 'invisible')} aria-hidden={!visible}>
+          <div key={tab.id} className={cn('absolute inset-0', !visible && (hideWithDisplay ? 'hidden' : 'invisible'))} aria-hidden={!visible}>
             {tab.kind === 'terminal' ? (
               <TerminalTab workspaceId={workspace.id} tab={tab} visible={visible} />
             ) : tab.kind === 'editor' ? (

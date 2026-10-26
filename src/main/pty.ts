@@ -15,6 +15,7 @@ export type SpawnRequest = {
   command?: string | null
   followupPrompt?: string | null
   env?: Record<string, string>
+  inheritCursor?: boolean
 }
 
 type Session = {
@@ -84,6 +85,10 @@ class PtyManager {
       rows: Math.max(2, request.rows),
       cwd,
       useConpty: true,
+      // Why: the inbox ConPTY on Windows 10 repaints only its viewport on resize, dropping scrollback.
+      useConptyDll: true,
+      // Why: restored scrollback is already on screen; ConPTY must start below it instead of painting over it from row 0.
+      conptyInheritCursor: Boolean(request.inheritCursor),
       env: {
         ...process.env,
         TERM_PROGRAM: 'relay',

@@ -22,6 +22,7 @@ import * as obsidian from './obsidian'
 import { ptyManager, resolveShell, type SpawnRequest } from './pty'
 import { store } from './store'
 import * as skills from './skills'
+import { checkForUpdates, installUpdate, updateStatus } from './updater'
 import { getClaudeUsage } from './usage'
 import { createWorkspace, listWorkspaces, removeWorkspace } from './workspaces'
 
@@ -230,6 +231,10 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     })
     notification.show()
   })
+
+  ipcMain.handle('updater:get', () => updateStatus())
+  ipcMain.handle('updater:check', () => checkForUpdates(getWindow))
+  ipcMain.handle('updater:install', () => installUpdate())
 
   ipcMain.handle('app:saveImage', async (_e, base64Png: string) => {
     const dir = join(tmpdir(), 'relay-attachments')

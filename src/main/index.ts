@@ -4,6 +4,7 @@ import { workspaceWatchers } from './files'
 import { registerIpc } from './ipc'
 import { ptyManager } from './pty'
 import { store } from './store'
+import { checkForUpdatesDaily } from './updater'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -108,6 +109,7 @@ if (!gotLock) {
       }
     })
     createWindow()
+    checkForUpdatesDaily(() => mainWindow)
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         createWindow()

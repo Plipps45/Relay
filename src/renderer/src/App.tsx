@@ -8,7 +8,7 @@ import { paneIds } from '@/lib/split-layout'
 import { Sidebar } from './components/Sidebar'
 import { RightSidebar } from './components/RightSidebar'
 import { TabBar, WorkbenchContent } from './components/Workbench'
-import { Landing, StatusBar, Toaster } from './components/Chrome'
+import { Landing, StatusBar, Toaster, UpdatePrompt } from './components/Chrome'
 import { ComposerDialog } from './components/ComposerDialog'
 import { SettingsDialog } from './components/SettingsDialog'
 import { QuickOpen } from './components/QuickOpen'
@@ -300,6 +300,8 @@ export function App(): ReactNode {
   }, [workspace?.id, workspace?.path])
 
   useEffect(() => {
+    void window.relay.updater.get().then((update) => useStore.getState().setUpdate(update))
+    const offUpdate = window.relay.updater.onStatus((update) => useStore.getState().setUpdate(update))
     const offClick = window.relay.app.onNotificationClick((workspaceId) => useStore.getState().selectWorkspace(workspaceId))
     const offFocus = window.relay.app.onFocusChange((focused) => {
       const state = useStore.getState()
@@ -325,6 +327,7 @@ export function App(): ReactNode {
       void Promise.allSettled(writes).then(() => window.relay.app.closeReady())
     })
     return () => {
+      offUpdate()
       offClick()
       offFocus()
       offClose()
@@ -361,6 +364,7 @@ export function App(): ReactNode {
       <DialogHost />
       {palette ? <QuickOpen mode={palette} /> : null}
       <Toaster />
+      <UpdatePrompt />
     </div>
   )
 }

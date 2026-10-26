@@ -26,6 +26,8 @@ type Entry = {
   tracker: ReturnType<typeof createAgentStatusTracker>
   resizeObserver: ResizeObserver | null
   shell: ShellKind
+  // Output from an earlier process (restored scrollback or an exited shell) is on screen.
+  hasPriorOutput: boolean
 }
 
 const entries = new Map<string, Entry>()
@@ -56,6 +58,7 @@ function ensureListeners(): void {
       return
     }
     entry.spawned = false
+    entry.hasPriorOutput = true
     entry.term.write(`\r\n\x1b[2m[process exited with code ${exitCode} — press Enter to restart]\x1b[0m\r\n`)
     useStore.getState().setPaneRuntime(id, { status: null, exited: true })
   })
@@ -131,7 +134,10 @@ function create(options: CreateTerminalOptions): Entry {
     lineHeight: 1.15,
     theme: darkMode ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME,
     macOptionIsMeta: true,
-    rightClickSelectsWord: false
+    rightClickSelectsWord: false,
+    // Why: the PTY runs node-pty's bundled conpty.dll, which reflows on resize like Windows build 21376+;
+    // xterm has to know so the two agree on wrapping instead of losing or duplicating lines.
+    windowsPty: window.relay.platform === 'win32' ? { backend: 'conpty', buildNumber: 21376 } : undefined
   })
   const fit = new FitAddon()
   const search = new SearchAddon()
@@ -162,7 +168,8 @@ function create(options: CreateTerminalOptions): Entry {
     pendingData: [],
     tracker: createAgentStatusTracker(),
     resizeObserver: null,
-    shell: 'powershell'
+    shell: 'powershell',
+    hasPriorOutput: Boolean(options.scrollback)
   }
 
   term.onData((data) => {
@@ -281,6 +288,7 @@ async function spawn(entry: Entry): Promise<void> {
       rows: entry.term.rows,
       command: launch?.command ?? null,
       followupPrompt: launch?.followupPrompt ?? null,
+      inheritCursor: entry.hasPriorOutput,
       env: workspace
         ? { RELAY_WORKSPACE_PATH: workspace.path, RELAY_WORKSPACE_NAME: workspace.displayName }
         : undefined

@@ -118,7 +118,14 @@ export type PersistedState = {
   settings: Settings
   ui: UiState
   sessions: Record<string, WorkspaceSession>
+  /** Local date (Y-M-D) of the last automatic update check. */
+  lastUpdateCheck?: string
 }
+
+export type UpdateStatus =
+  | { state: 'idle' | 'checking' | 'up-to-date' }
+  | { state: 'available' | 'downloading' | 'ready'; version: string }
+  | { state: 'error'; message: string }
 
 export type AgentAvailability = {
   id: string

@@ -14,6 +14,7 @@ import type {
   SkillInfo,
   Settings,
   UiState,
+  UpdateStatus,
   VaultIndex,
   Workspace,
   WorkspaceMeta,
@@ -39,6 +40,8 @@ export type PtySpawnRequest = {
   command?: string | null
   followupPrompt?: string | null
   env?: Record<string, string>
+  /** Start below content already on screen (restored scrollback) instead of at row 0. */
+  inheritCursor?: boolean
 }
 
 export type RelayApi = {
@@ -112,6 +115,12 @@ export type RelayApi = {
     adapt: (projectId: string, key: string) => Promise<SkillInfo>
     remove: (projectId: string, key: string) => Promise<void>
     files: (dir: string) => Promise<string[]>
+  }
+  updater: {
+    get: () => Promise<UpdateStatus>
+    check: () => Promise<UpdateStatus>
+    install: () => Promise<void>
+    onStatus: (listener: (status: UpdateStatus) => void) => () => void
   }
   usage: {
     get: () => Promise<ClaudeUsage>

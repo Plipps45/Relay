@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Copy,
   Code2,
+  Download,
   FolderOpen,
   FolderPlus,
   ListFilter,
@@ -13,6 +14,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  RefreshCw,
   Search,
   Settings,
   SquarePen,
@@ -211,12 +213,51 @@ export function Sidebar(): ReactNode {
           <FolderPlus className="size-3.5" /> Add project
         </button>
         <div className="flex-1" />
+        <UpdateButton />
         <IconButton label={`Settings (${shortcutLabel('settings')})`} onClick={() => setDialog({ kind: 'settings' })}>
           <Settings className="size-4" />
         </IconButton>
       </div>
       {menu.render()}
     </aside>
+  )
+}
+
+function UpdateButton(): ReactNode {
+  const update = useStore((s) => s.update)
+  const busy = update.state === 'checking' || update.state === 'downloading'
+  const label =
+    update.state === 'ready'
+      ? `Restart to install Relay ${update.version}`
+      : update.state === 'downloading'
+        ? `Downloading Relay ${update.version}…`
+        : update.state === 'checking'
+          ? 'Checking for updates…'
+          : 'Check for updates'
+
+  const onClick = async (): Promise<void> => {
+    const state = useStore.getState()
+    if (update.state === 'ready') {
+      state.setUpdatePromptDismissed(false)
+      return
+    }
+    const result = await window.relay.updater.check()
+    if (result.state === 'up-to-date') {
+      state.toast('success', 'Relay is up to date.')
+    } else if (result.state === 'available') {
+      state.toast('info', `Relay ${result.version} is available. Updates install only in the packaged app.`)
+    } else if (result.state === 'ready') {
+      state.setUpdatePromptDismissed(false)
+    } else if (result.state === 'error') {
+      state.toast('error', `Update check failed: ${result.message}`)
+    }
+  }
+
+  return (
+    <IconButton label={label} disabled={busy} onClick={() => void onClick()} className="relative">
+      {update.state === 'ready' ? <Download className="size-4" /> : <RefreshCw className={cn('size-4', busy && 'animate-spin')} />}
+      {update.state === 'ready' ? <span className="absolute top-1 right-1 size-1.5 rounded-full bg-status-success" /> : null}
+    </IconButton>
   )
 }
 

@@ -4,6 +4,9 @@ import { useIsDark } from '@/lib/theme'
 export type GraphNode = { id: string; label: string }
 export type GraphEdge = { source: string; target: string }
 
+// Notes farther apart than this don't repel each other.
+const CUTOFF = 500
+
 type SimNode = GraphNode & { x: number; y: number; vx: number; vy: number; degree: number; fixed: boolean }
 
 function cssVar(name: string, fallback: string): string {
@@ -12,7 +15,7 @@ function cssVar(name: string, fallback: string): string {
 
 /**
  * Obsidian-style graph view: a small force simulation on a canvas. Repulsion
- * is O(n²), which stays smooth for a few thousand notes once it settles.
+ * only looks at nearby grid cells, so large vaults stay interactive.
  */
 export function NotesGraph({
   nodes,
@@ -109,26 +112,47 @@ export function NotesGraph({
       const sim = simRef.current
       const { nodes: list, links } = sim
       const alpha = sim.alpha
+      // Repulsion is cut off past CUTOFF, so a grid of that cell size only needs the 3×3 neighbouring cells.
+      const grid = new Map<string, number[]>()
+      list.forEach((node, i) => {
+        const key = `${Math.floor(node.x / CUTOFF)},${Math.floor(node.y / CUTOFF)}`
+        const cell = grid.get(key)
+        if (cell) {
+          cell.push(i)
+        } else {
+          grid.set(key, [i])
+        }
+      })
       for (let i = 0; i < list.length; i += 1) {
         const a = list[i]
-        for (let j = i + 1; j < list.length; j += 1) {
-          const b = list[j]
-          let dx = a.x - b.x
-          let dy = a.y - b.y
-          let distance = dx * dx + dy * dy
-          if (distance < 0.01) {
-            dx = Math.random() - 0.5
-            dy = Math.random() - 0.5
-            distance = 0.25
+        const cx = Math.floor(a.x / CUTOFF)
+        const cy = Math.floor(a.y / CUTOFF)
+        for (let gx = cx - 1; gx <= cx + 1; gx += 1) {
+          for (let gy = cy - 1; gy <= cy + 1; gy += 1) {
+            for (const j of grid.get(`${gx},${gy}`) ?? []) {
+              // Each pair once, as in the plain double loop.
+              if (j <= i) {
+                continue
+              }
+              const b = list[j]
+              let dx = a.x - b.x
+              let dy = a.y - b.y
+              let distance = dx * dx + dy * dy
+              if (distance < 0.01) {
+                dx = Math.random() - 0.5
+                dy = Math.random() - 0.5
+                distance = 0.25
+              }
+              if (distance > CUTOFF * CUTOFF) {
+                continue
+              }
+              const force = (400 * alpha) / distance
+              a.vx += dx * force
+              a.vy += dy * force
+              b.vx -= dx * force
+              b.vy -= dy * force
+            }
           }
-          if (distance > 250_000) {
-            continue
-          }
-          const force = (400 * alpha) / distance
-          a.vx += dx * force
-          a.vy += dy * force
-          b.vx -= dx * force
-          b.vy -= dy * force
         }
       }
       for (const [a, b] of links) {
@@ -191,7 +215,17 @@ export function NotesGraph({
       context.font = `${11 / scale}px ${cssVar('--app-font-family', 'sans-serif')}`
       context.textAlign = 'center'
       context.textBaseline = 'top'
+      // World-space bounds of the canvas; nodes outside are skipped.
+      const halfW = width / ratio / 2 / scale
+      const halfH = height / ratio / 2 / scale
+      const left = -x / scale - halfW - 50
+      const right = -x / scale + halfW + 50
+      const top = -y / scale - halfH - 50
+      const bottom = -y / scale + halfH + 50
       for (const node of sim.nodes) {
+        if (node.x < left || node.x > right || node.y < top || node.y > bottom) {
+          continue
+        }
         const isActive = node.id === activeRef.current
         const lit = !focus || node === focus || neighbors.has(node)
         context.globalAlpha = lit ? 1 : 0.25

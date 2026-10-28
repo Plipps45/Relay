@@ -197,7 +197,12 @@ export function createResolver(paths: string[]): LinkResolver {
     const lower = path.toLowerCase()
     byPath.set(lower, path)
     const name = lower.split('/').pop() ?? lower
-    byName.set(name, [...(byName.get(name) ?? []), path])
+    const list = byName.get(name)
+    if (list) {
+      list.push(path)
+    } else {
+      byName.set(name, [path])
+    }
   }
   const pick = (candidates: string[], fromDir: string): string =>
     [...candidates].sort(

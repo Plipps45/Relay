@@ -64,6 +64,8 @@ type VaultGraph = {
   edges: GraphEdge[]
 }
 
+const TREE_PAGE = 300
+
 type FolderNode = { name: string; path: string; folders: FolderNode[]; notes: VaultNote[] }
 
 const EMPTY_GRAPH: VaultGraph = { resolve: () => null, byPath: new Map(), backlinks: new Map(), tags: new Map(), nodes: [], edges: [] }
@@ -108,11 +110,21 @@ function buildGraph(index: VaultIndex | null): VaultGraph {
       }
     }
     for (const target of targets) {
-      backlinks.set(target, [...(backlinks.get(target) ?? []), note.path])
+      const list = backlinks.get(target)
+      if (list) {
+        list.push(note.path)
+      } else {
+        backlinks.set(target, [note.path])
+      }
       edges.push({ source: note.path, target })
     }
     for (const tag of note.tags) {
-      tags.set(tag, [...(tags.get(tag) ?? []), note.path])
+      const list = tags.get(tag)
+      if (list) {
+        list.push(note.path)
+      } else {
+        tags.set(tag, [note.path])
+      }
     }
   }
   return { resolve, byPath, backlinks, tags, nodes: index.notes.map((n) => ({ id: n.path, label: n.title })), edges }
@@ -120,13 +132,16 @@ function buildGraph(index: VaultIndex | null): VaultGraph {
 
 function buildTree(notes: VaultNote[]): FolderNode {
   const root: FolderNode = { name: '', path: '', folders: [], notes: [] }
+  const byPath = new Map<string, FolderNode>([['', root]])
   for (const note of notes) {
     let folder = root
     const parts = note.path.split('/').slice(0, -1)
     parts.forEach((part, i) => {
-      let next = folder.folders.find((f) => f.name === part)
+      const path = parts.slice(0, i + 1).join('/')
+      let next = byPath.get(path)
       if (!next) {
-        next = { name: part, path: parts.slice(0, i + 1).join('/'), folders: [], notes: [] }
+        next = { name: part, path, folders: [], notes: [] }
+        byPath.set(path, next)
         folder.folders.push(next)
       }
       folder = next
@@ -206,6 +221,9 @@ export function NotesTab({ workspaceId, tab, visible }: { workspaceId: string; t
   const menu = useMenu()
 
   const graph = useMemo(() => buildGraph(index), [index])
+  // Rebuilt only on reindex; building it on every render froze typing in large vaults.
+  const tree = useMemo(() => (index ? buildTree(index.notes) : null), [index])
+  const files = useMemo(() => new Set(index?.files), [index])
   const notesRef = useRef<VaultNote[]>([])
   notesRef.current = index?.notes ?? []
 
@@ -650,7 +668,7 @@ export function NotesTab({ workspaceId, tab, visible }: { workspaceId: string; t
     let cancelled = false
     for (const img of root.querySelectorAll<HTMLImageElement>('img[data-src]')) {
       const raw = img.dataset.src ?? ''
-      const rel = graph.byPath.has(raw) || index?.files.includes(raw) ? raw : graph.resolve(decodeURIComponent(raw), current.path)
+      const rel = graph.byPath.has(raw) || files.has(raw) ? raw : graph.resolve(decodeURIComponent(raw), current.path)
       if (!rel) {
         continue
       }
@@ -817,7 +835,7 @@ export function NotesTab({ workspaceId, tab, visible }: { workspaceId: string; t
             </div>
           ) : panel === 'files' ? (
             <FileTree
-              folder={buildTree(index.notes)}
+              folder={tree!}
               depth={0}
               current={notePath}
               expanded={expanded}
@@ -1024,6 +1042,8 @@ function FileTree({
   onContext: (path: string, event: React.MouseEvent) => void
 }): ReactNode {
   const pad = { paddingLeft: 8 + depth * 12 }
+  // Folders with thousands of notes mount in pages so expanding one doesn't stall the UI.
+  const [limit, setLimit] = useState(TREE_PAGE)
   return (
     <>
       {folder.folders.map((child) => {
@@ -1039,7 +1059,7 @@ function FileTree({
           </div>
         )
       })}
-      {folder.notes.map((note) => (
+      {folder.notes.slice(0, limit).map((note) => (
         <button
           key={note.path}
           type="button"
@@ -1055,6 +1075,16 @@ function FileTree({
           <span className="truncate">{note.title}</span>
         </button>
       ))}
+      {folder.notes.length > limit ? (
+        <button
+          type="button"
+          style={{ paddingLeft: 8 + depth * 12 + 16 }}
+          className="flex h-6 w-full items-center pr-2 text-left text-xs text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground"
+          onClick={() => setLimit((n) => n + TREE_PAGE)}
+        >
+          Show {Math.min(TREE_PAGE, folder.notes.length - limit)} more of {folder.notes.length - limit}
+        </button>
+      ) : null}
     </>
   )
 }

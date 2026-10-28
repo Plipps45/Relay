@@ -43,18 +43,21 @@ async function walk(root: string, dir: string, out: string[]): Promise<void> {
   } catch {
     return
   }
+  const subdirs: string[] = []
   for (const entry of entries) {
     if (out.length >= MAX_FILES) {
       return
     }
     if (entry.isDirectory()) {
       if (!SKIP_DIRS.has(entry.name)) {
-        await walk(root, join(dir, entry.name), out)
+        subdirs.push(join(dir, entry.name))
       }
     } else if (entry.isFile()) {
       out.push(relative(root, join(dir, entry.name)).split(sep).join('/'))
     }
   }
+  // Sibling folders are read in parallel; deep vaults otherwise wait on one readdir at a time.
+  await Promise.all(subdirs.map((sub) => walk(root, sub, out)))
 }
 
 async function readDailyNotesConfig(root: string): Promise<VaultIndex['dailyNotes']> {
@@ -66,12 +69,19 @@ async function readDailyNotesConfig(root: string): Promise<VaultIndex['dailyNote
   }
 }
 
-async function indexNote(root: string, path: string): Promise<VaultNote | null> {
+// Parsed notes per vault, reused while a file's mtime and size are unchanged so a reindex only reads what changed.
+const noteCache = new Map<string, Map<string, { mtime: number; size: number; note: VaultNote }>>()
+
+async function indexNote(root: string, path: string, cache: Map<string, { mtime: number; size: number; note: VaultNote }>): Promise<VaultNote | null> {
   const full = join(root, path)
   try {
-    const [info, text] = await Promise.all([stat(full), readFile(full, 'utf8')])
-    const parsed = parseNote(text)
-    return {
+    const info = await stat(full)
+    const cached = cache.get(path)
+    if (cached && cached.mtime === info.mtimeMs && cached.size === info.size) {
+      return cached.note
+    }
+    const parsed = parseNote(await readFile(full, 'utf8'))
+    const note: VaultNote = {
       path,
       title: noteTitle(path),
       mtime: info.mtimeMs,
@@ -80,7 +90,10 @@ async function indexNote(root: string, path: string): Promise<VaultNote | null> 
       tags: parsed.tags,
       aliases: parsed.aliases
     }
+    cache.set(path, { mtime: info.mtimeMs, size: info.size, note })
+    return note
   } catch {
+    cache.delete(path)
     return null
   }
 }
@@ -88,12 +101,22 @@ async function indexNote(root: string, path: string): Promise<VaultNote | null> 
 export async function indexVault(root: string): Promise<VaultIndex> {
   const paths: string[] = []
   await walk(root, root, paths)
+  paths.sort()
   const notePaths = paths.filter(isNotePath)
+  const cache = noteCache.get(root) ?? new Map()
+  noteCache.set(root, cache)
+  const live = new Set(notePaths)
+  for (const path of cache.keys()) {
+    if (!live.has(path)) {
+      cache.delete(path)
+    }
+  }
   const notes: VaultNote[] = []
-  // Bounded concurrency keeps large vaults from exhausting file handles.
-  for (let i = 0; i < notePaths.length; i += 64) {
-    const batch = await Promise.all(notePaths.slice(i, i + 64).map((path) => indexNote(root, path)))
+  // Bounded concurrency keeps large vaults from exhausting file handles; yielding between batches keeps IPC responsive.
+  for (let i = 0; i < notePaths.length; i += 128) {
+    const batch = await Promise.all(notePaths.slice(i, i + 128).map((path) => indexNote(root, path, cache)))
     notes.push(...batch.filter((note): note is VaultNote => note !== null))
+    await new Promise((resolve) => setImmediate(resolve))
   }
   return { root, notes, files: paths.filter((path) => !isNotePath(path)), dailyNotes: await readDailyNotesConfig(root) }
 }

@@ -20,6 +20,7 @@ import {
   ListTree,
   Network,
   NotebookText,
+  Palette,
   PanelRightClose,
   PanelRightOpen,
   PenLine,
@@ -48,7 +49,7 @@ import { colorizeCodeBlocks, renderMarkdown } from '@/lib/markdown'
 import { monaco } from '@/lib/monaco'
 import { registerVaultCompletions } from '@/lib/note-completions'
 import { useIsDark } from '@/lib/theme'
-import { NotesGraph, type GraphEdge, type GraphNode } from './NotesGraph'
+import { GRAPH_SKINS, NotesGraph, type GraphEdge, type GraphNode } from './NotesGraph'
 import { Button, IconButton, Input, Spinner, cn, useMenu, type MenuItem } from './ui'
 
 type NotesTabSession = Extract<TabSession, { kind: 'notes' }>
@@ -197,6 +198,13 @@ export function NotesTab({ workspaceId, tab, visible }: { workspaceId: string; t
   const [dirty, setDirty] = useState(false)
   const [view, setView] = useState<View>('read')
   const [mode, setMode] = useState<'note' | 'graph'>('note')
+  const [graphSkin, setGraphSkin] = useState(() => {
+    try {
+      return localStorage.getItem('relay.graphSkin') ?? 'default'
+    } catch {
+      return 'default'
+    }
+  })
   const [panel, setPanel] = useState<Panel>('files')
   const [rightOpen, setRightOpen] = useState(true)
   const [selectedTag, setSelectedTag] = useState<string | null>(null)
@@ -871,7 +879,32 @@ export function NotesTab({ workspaceId, tab, visible }: { workspaceId: string; t
             <ArrowRight className="size-4" />
           </IconButton>
           {mode === 'graph' ? (
-            <span className="min-w-0 flex-1 truncate px-1 text-[13px] font-medium">Graph view · {noteCount} notes</span>
+            <>
+              <span className="min-w-0 flex-1 truncate px-1 text-[13px] font-medium">Graph view · {noteCount} notes</span>
+              <IconButton
+                label="Graph skin"
+                onClick={(e) =>
+                  menu.openBelow(
+                    GRAPH_SKINS.map((skin) => ({
+                      label: skin.label,
+                      checked: skin.id === graphSkin,
+                      onSelect: () => {
+                        setGraphSkin(skin.id)
+                        try {
+                          localStorage.setItem('relay.graphSkin', skin.id)
+                        } catch {
+                          // Only a remembered preference; the skin still applies for this session.
+                        }
+                      }
+                    })),
+                    e.currentTarget,
+                    'end'
+                  )
+                }
+              >
+                <Palette className="size-4" />
+              </IconButton>
+            </>
           ) : notePath ? (
             <div className="flex min-w-0 flex-1 items-center gap-1 px-1">
               {folderOf(notePath) ? <span className="shrink-0 truncate text-xs text-muted-foreground">{folderOf(notePath)} /</span> : null}
@@ -936,7 +969,13 @@ export function NotesTab({ workspaceId, tab, visible }: { workspaceId: string; t
 
         <div className="relative flex min-h-0 flex-1">
           {mode === 'graph' ? (
-            <NotesGraph nodes={graph.nodes} edges={graph.edges} activeId={notePath} visible={visible} onOpen={(path) => openNote(path)} />
+            <NotesGraph
+              nodes={graph.nodes}
+              edges={graph.edges}
+              activeId={notePath}
+              visible={visible}
+              skin={GRAPH_SKINS.find((skin) => skin.id === graphSkin) ?? GRAPH_SKINS[0]}
+              onOpen={(path) => openNote(path)} />
           ) : !notePath ? (
             <VaultHome index={index} onOpen={(path) => openNote(path)} onNew={() => void newNote()} onDaily={() => void openDailyNote()} />
           ) : noteError ? (
